@@ -1,0 +1,256 @@
+---
+title: "6414_project"
+output: html_document
+date: "2024-11-15"
+---
+
+```{r}
+# Shortening variable names 
+library(dplyr)
+facebook=read.csv("/Users/navyabingi/Downloads/facebook+metrics/dataset_Facebook.csv",header=TRUE,sep=";")
+facebook = na.omit(facebook)
+facebook <- facebook %>%
+  rename(
+    total_reach=Lifetime.Post.Total.Reach,
+    total_impressions=Lifetime.Post.Total.Impressions,
+    engaged_users=Lifetime.Engaged.Users,
+    consumers=Lifetime.Post.Consumers,
+    consumptions=Lifetime.Post.Consumptions,
+    total_like_imp=Lifetime.Post.Impressions.by.people.who.have.liked.your.Page,
+    like_reach=Lifetime.Post.reach.by.people.who.like.your.Page,
+    liked_engaged=Lifetime.People.who.have.liked.your.Page.and.engaged.with.your.post
+  )
+
+#facebook$Type <- as.numeric(factor(facebook$Type))
+facebook
+```
+
+
+```{r}
+# Understanding the distributions of the variables
+library(ggplot2)
+dist_plots <- function(data) {
+  for (column in names(data)) {
+    if (is.integer(data[[column]])) {
+      hist(data[[column]],xlab=column,main=column)
+      qqnorm(data[[column]])
+      qqline(data[[column]])
+    }
+  }
+}
+dist_plots(facebook)
+```
+
+```{r}
+# Does the type of post the company makes influence the post’s performance? What types of posts are the most engaging? 
+
+avg_consumers1 <- aggregate(consumers ~ Type, data = facebook, FUN = mean)
+avg_consumers2 <- aggregate(total_reach ~ Type, data = facebook, FUN = mean)
+avg_consumers3 <- aggregate(engaged_users ~ Type, data = facebook, FUN = mean)
+avg_consumers4 <- aggregate(like ~ Type, data = facebook, FUN = mean)
+avg_consumers4 <- aggregate(like ~ Type, data = facebook, FUN = mean)
+
+ggplot(avg_consumers1, aes(x = Type, y = consumers, fill = Type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Type of Post", y = "Average Lifetime Post Consumers", 
+       title = "Average Lifetime Post Consumers by Post Type")
+
+ggplot(avg_consumers2, aes(x = Type, y = total_reach, fill = Type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Type of Post", y = "Average Total Reach", 
+       title = "Average Total Reach by Post Type") 
+
+
+ggplot(avg_consumers3, aes(x = Type, y = engaged_users, fill = Type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Type of Post", y = "Average Engaged Users", 
+       title = "Average Engaged Users by Post Type") 
+
+
+ggplot(avg_consumers4, aes(x = Type, y = like, fill = Type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Type of Post", y = "Average Likes", 
+       title = "Average Likes by Post Type") 
+
+```
+
+```{r}
+# Is a post’s performance when it has paid advertising significantly different from its performance without paid advertising? 
+
+facebook <- facebook %>%
+  mutate(label = ifelse(facebook$Paid == 1, "Yes", "No"))
+
+avg_consumers5 <- aggregate(consumers ~ label, data = facebook, FUN = sum)
+avg_consumers6 <- aggregate(total_reach ~ label, data = facebook, FUN = mean)
+avg_consumers7 <- aggregate(engaged_users ~ label, data = facebook, FUN = mean)
+avg_consumers8 <- aggregate(like ~ label, data = facebook, FUN = mean)
+
+ggplot(avg_consumers5, aes(x = label, y = consumers, fill = label)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Paid?", y = "Average Lifetime Post Consumers", 
+       title = "Average Lifetime Post Consumers by Paid")
+
+ggplot(avg_consumers6, aes(x = label, y = total_reach, fill = label)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Paid?", y = "Average Total Reach", 
+       title = "Average Total Reach by Paid") 
+
+ggplot(avg_consumers7, aes(x = label, y = engaged_users, fill = label)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Paid?", y = "Average Engaged Users", 
+       title = "Average Engaged Users by Paid") 
+
+ggplot(avg_consumers8, aes(x = label, y = like, fill = label)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Paid?", y = "Average Likes", 
+       title = "Average Likes by Paid") 
+
+```
+```{r}
+# Outlier Plots
+library(ggfortify)
+library(MASS)
+model1=lm(facebook$consumers~.,data=facebook)
+
+plot(model1)
+plot(model1, which = 4)
+
+
+# Plotting scatterplot of all data 
+plot(facebook[,8:12])
+plot(facebook[,c(10, 13:17)])
+
+# Plotting boxcox graph to decide if transformation is needed 
+boxcox(model1, lambda = seq(-2, 2, by = 0.1))
+
+# Plotting different variables against the response to see if they have a linear relationship 
+plot(facebook$total_like_imp,facebook$consumers,xlim = c(0, 200000))
+plot(facebook$comment,facebook$consumers,xlim = c(0, 40))
+plot(facebook$total_impressions,facebook$consumers,xlim = c(0, 100000),ylim=c(0, 5000))
+plot(facebook$total_like_imp,facebook$consumers,xlim = c(0, 200000))
+#facebook$total_like_imp <- log(facebook$total_like_imp)
+plot(facebook$total_like_imp,facebook$consumers,xlim = c(0, 20000),ylim=c(0, 2000))
+plot(facebook2$consumers,facebook2$comment)
+
+# Removing outliers 
+outliers <- c(143, 169, 243,245,416,447)
+facebook2 = facebook[-outliers, ]
+
+# Removing unnecessary columns 
+facebook2 <- subset(facebook2, select = -c(comment,label,Total.Interactions))
+#facebook2 <- subset(facebook2, select = -label)
+#bc=boxcox(lm(facebook2$Page.total.likes ~ 1, data = facebook2))
+#lambda=bc$x[which.max(bc$y)]
+
+# Transforming all predictor variables 
+facebook2$Page.total.likes=facebook2$Page.total.likes^2
+facebook2$total_reach=log(facebook2$total_reach)
+facebook2$total_impressions=log(facebook2$total_impressions)
+facebook2$engaged_users=log(facebook2$engaged_users)
+facebook2$consumers=log(facebook2$consumers)
+facebook2$consumptions=log(facebook2$consumptions)
+facebook2$total_like_imp=log(facebook2$total_like_imp)
+facebook2$like_reach=log(facebook2$like_reach)
+facebook2$liked_engaged=log(facebook2$liked_engaged)
+facebook2$like=log(facebook2$like+1)
+facebook2$share=log(facebook2$share+1)
+#facebook2$Total.Interactions=log(facebook2$Total.Interactions)
+
+#facebook2$Type<- as.numeric(factor(facebook2$Type))
+
+# Scaling/standardizing numerical variables 
+numerical_cols <- sapply(facebook2, is.numeric)
+categorical_cols <- !numerical_cols
+facebook2[numerical_cols] <- scale(facebook2[numerical_cols])
+facebook2
+
+
+```
+```{r}
+library(leaps)
+# Perform best subsets regression
+best_subsets <- regsubsets(facebook2$consumer ~ ., data = facebook2) 
+# Get summary of the best subsets
+regs=summary(best_subsets)
+names(regs)
+plot(regs$cp,type="o",xlab="# of Variables",ylab="Cp",main="Best Subsets Regression")
+
+regs
+
+```
+
+
+```{r}
+# Correlations 
+
+library(corrplot)
+library(car)
+facebook2=facebook2[,-19]
+
+
+# Full model with all predictors 
+model1=lm(facebook2$consumers~.,data=facebook2)
+
+# Null model 
+null_model <- lm(facebook2$consumers~ 1, data = facebook2)
+
+# Stepwise variable selection
+stepwise_model <- step(null_model, 
+                       scope = list(lower = null_model, upper = model1),
+                       direction = "both",
+                       trace = TRUE) 
+
+
+
+
+# Summary of the final model
+summary(stepwise_model)
+
+vif(stepwise_model)
+```
+
+
+```{r}
+library(car)
+library(dplyr)
+
+
+# round(cor(numeric),digits = 2)
+# removing additional outliers 
+outliers <- c(143, 169, 243,245,416,447,483,461)
+facebook2 <- facebook2[-c(143, 169, 243,245,416,447,483,461,458,449), ]
+
+
+# numerical columns for corrplot
+numerical=facebook2 %>% select_if(is.numeric)
+numerical=numerical[,-c(2,6)]
+numerical=numerical[,-c(2,3,4)]
+
+
+# final model after variable selection and VIF
+model2 = lm(consumers ~ like+share+liked_engaged+like_reach+as.factor(Type)+Post.Month+Page.total.likes,data=facebook2)
+summary(model2)
+plot(model2)
+
+
+corrplot(cor(numerical, use = "complete.obs"), method = "number",number.cex = 0.6)
+# Testing MLR assumptions for final model
+plot(model2,which=4)
+facebook2
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
